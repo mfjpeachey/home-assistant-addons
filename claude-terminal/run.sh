@@ -108,14 +108,20 @@ migrate_legacy_auth_files() {
     fi
 }
 
-# Install required tools
-install_tools() {
-    bashio::log.info "Installing additional tools..."
-    if ! apk add --no-cache ttyd jq curl tmux; then
-        bashio::log.error "Failed to install required tools"
+# Verify required tools are available (installed at build time via Dockerfile)
+verify_tools() {
+    bashio::log.info "Verifying required tools..."
+    local missing=()
+    for tool in ttyd jq curl tmux; do
+        if ! command -v "$tool" &>/dev/null; then
+            missing+=("$tool")
+        fi
+    done
+    if [ ${#missing[@]} -gt 0 ]; then
+        bashio::log.error "Missing required tools: ${missing[*]}"
         exit 1
     fi
-    bashio::log.info "Tools installed successfully"
+    bashio::log.info "All required tools verified"
 }
 
 # Install persistent packages from config and saved state
@@ -305,7 +311,7 @@ main() {
     run_health_check
 
     init_environment
-    install_tools
+    verify_tools
     setup_session_picker
     install_persistent_packages
     start_web_terminal
