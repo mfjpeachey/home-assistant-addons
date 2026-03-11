@@ -129,16 +129,16 @@ install_persistent_packages() {
     bashio::log.info "Checking for persistent packages..."
 
     local persist_config="/data/persistent-packages.json"
-    local apk_packages=""
+    local apt_packages=""
     local pip_packages=""
 
-    # Collect APK packages from Home Assistant config
-    if bashio::config.has_value 'persistent_apk_packages'; then
-        local config_apk
-        config_apk=$(bashio::config 'persistent_apk_packages')
-        if [ -n "$config_apk" ] && [ "$config_apk" != "null" ]; then
-            apk_packages="$config_apk"
-            bashio::log.info "Found APK packages in config: $apk_packages"
+    # Collect apt packages from Home Assistant config
+    if bashio::config.has_value 'persistent_apt_packages'; then
+        local config_apt
+        config_apt=$(bashio::config 'persistent_apt_packages')
+        if [ -n "$config_apt" ] && [ "$config_apt" != "null" ]; then
+            apt_packages="$config_apt"
+            bashio::log.info "Found apt packages in config: $apt_packages"
         fi
     fi
 
@@ -156,11 +156,11 @@ install_persistent_packages() {
     if [ -f "$persist_config" ]; then
         bashio::log.info "Found local persistent packages config"
 
-        # Get APK packages from local config
-        local local_apk
-        local_apk=$(jq -r '.apk_packages | join(" ")' "$persist_config" 2>/dev/null || echo "")
-        if [ -n "$local_apk" ]; then
-            apk_packages="$apk_packages $local_apk"
+        # Get apt packages from local config (supports both legacy "apk_packages" and new "apt_packages" keys)
+        local local_apt
+        local_apt=$(jq -r '(.apt_packages // .apk_packages // []) | join(" ")' "$persist_config" 2>/dev/null || echo "")
+        if [ -n "$local_apt" ]; then
+            apt_packages="$apt_packages $local_apt"
         fi
 
         # Get pip packages from local config
@@ -172,17 +172,18 @@ install_persistent_packages() {
     fi
 
     # Trim whitespace and remove duplicates
-    apk_packages=$(echo "$apk_packages" | tr ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
+    apt_packages=$(echo "$apt_packages" | tr ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
     pip_packages=$(echo "$pip_packages" | tr ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
 
-    # Install APK packages
-    if [ -n "$apk_packages" ]; then
-        bashio::log.info "Installing persistent APK packages: $apk_packages"
+    # Install apt packages
+    if [ -n "$apt_packages" ]; then
+        bashio::log.info "Installing persistent apt packages: $apt_packages"
         # shellcheck disable=SC2086
-        if apk add --no-cache $apk_packages; then
-            bashio::log.info "APK packages installed successfully"
+        if apt-get update && apt-get install -y --no-install-recommends $apt_packages; then
+            apt-get clean && rm -rf /var/lib/apt/lists/*
+            bashio::log.info "apt packages installed successfully"
         else
-            bashio::log.warning "Some APK packages failed to install"
+            bashio::log.warning "Some apt packages failed to install"
         fi
     fi
 
@@ -197,7 +198,7 @@ install_persistent_packages() {
         fi
     fi
 
-    if [ -z "$apk_packages" ] && [ -z "$pip_packages" ]; then
+    if [ -z "$apt_packages" ] && [ -z "$pip_packages" ]; then
         bashio::log.info "No persistent packages configured"
     fi
 }

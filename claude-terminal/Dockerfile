@@ -2,26 +2,39 @@ ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 # Install system packages and development tools
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     curl \
     nano \
     nodejs \
     npm \
     python3 \
-    py3-pip \
-    py3-requests \
-    py3-aiohttp \
-    py3-yaml \
-    py3-beautifulsoup4 \
+    python3-pip \
+    python3-requests \
+    python3-aiohttp \
+    python3-yaml \
+    python3-bs4 \
     git \
     vim \
     wget \
     jq \
     tree \
     tmux \
-    ttyd \
-    yq
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install yq (not available in Debian repos)
+RUN pip3 install --break-system-packages yq
+
+# Install ttyd from GitHub releases (not packaged in Debian bookworm)
+RUN ARCH=$(uname -m) && \
+    case "$ARCH" in \
+        x86_64) TTYD_ARCH="x86_64" ;; \
+        aarch64) TTYD_ARCH="aarch64" ;; \
+        armv7l) TTYD_ARCH="armhf" ;; \
+    esac && \
+    curl -fsSL "https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.${TTYD_ARCH}" \
+        -o /usr/local/bin/ttyd && \
+    chmod +x /usr/local/bin/ttyd
 
 # Install Claude Code CLI using native installer
 # The installer places the binary in ~/.local/bin
